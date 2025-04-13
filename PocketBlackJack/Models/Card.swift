@@ -1,12 +1,5 @@
 import Foundation
 
-enum Suit: String, CaseIterable {
-    case hearts = "♥"
-    case diamonds = "♦"
-    case clubs = "♣"
-    case spades = "♠"
-}
-
 enum Rank: Int, CaseIterable {
     case ace = 1
     case two = 2
@@ -43,11 +36,10 @@ enum Rank: Int, CaseIterable {
 
 struct Card: Identifiable, Equatable {
     let id = UUID()
-    let suit: Suit
     let rank: Rank
     
     var displayName: String {
-        return "\(rank.displayValue)\(suit.rawValue)"
+        return rank.displayValue
     }
     
     static func == (lhs: Card, rhs: Card) -> Bool {
