@@ -23,7 +23,7 @@ enum Rank: Int, CaseIterable {
     case king = 13
     
     var value: Int {
-        switch this {
+        switch self {
         case .ace: return 11
         case .jack, .queen, .king: return 10
         default: return self.rawValue
@@ -31,7 +31,7 @@ enum Rank: Int, CaseIterable {
     }
     
     var displayValue: String {
-        switch this {
+        switch self {
         case .ace: return "A"
         case .jack: return "J"
         case .queen: return "Q"
@@ -41,12 +41,16 @@ enum Rank: Int, CaseIterable {
     }
 }
 
-struct Card: Identifiable {
+struct Card: Identifiable, Equatable {
     let id = UUID()
     let suit: Suit
     let rank: Rank
     
     var displayName: String {
         return "\(rank.displayValue)\(suit.rawValue)"
+    }
+    
+    static func == (lhs: Card, rhs: Card) -> Bool {
+        return lhs.id == rhs.id
     }
 } 
