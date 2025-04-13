@@ -4,6 +4,11 @@ struct GameView: View {
     @StateObject private var gameState = GameState()
     @State private var selectedPlayerCards: [Card] = []
     @State private var selectedDealerCard: Card?
+    @State private var showProbabilities = false
+    
+    private let ranks = Rank.allCases
+    private let cardsPerRow = 4
+    private let numberOfRows = 3
     
     var body: some View {
         VStack(spacing: 20) {
@@ -13,87 +18,145 @@ struct GameView: View {
                     .font(.headline)
                 if let dealerCard = selectedDealerCard {
                     CardView(card: dealerCard)
+                        .frame(width: 100, height: 150)
                 } else {
-                    Text("Select dealer's card")
-                        .foregroundColor(.gray)
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 100, height: 150)
+                        .overlay(
+                            Text("Select Dealer Card")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        )
                 }
             }
             
             // Player's cards
             VStack {
-                Text("Your Cards")
+                Text("Player's Cards")
                     .font(.headline)
-                HStack {
+                HStack(spacing: 10) {
                     ForEach(selectedPlayerCards) { card in
                         CardView(card: card)
+                            .frame(width: 100, height: 150)
                     }
                     if selectedPlayerCards.count < 2 {
-                        Text("Select your cards")
-                            .foregroundColor(.gray)
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 100, height: 150)
+                            .overlay(
+                                Text("Select Card")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            )
                     }
                 }
             }
             
-            // Card selection
-            CardSelectionView(
-                selectedPlayerCards: $selectedPlayerCards,
-                selectedDealerCard: $selectedDealerCard,
-                maxPlayerCards: 2
-            )
+            // Card selection grid
+            VStack(spacing: 10) {
+                ForEach(0..<numberOfRows, id: \.self) { row in
+                    HStack(spacing: 10) {
+                        ForEach(0..<cardsPerRow, id: \.self) { col in
+                            let index = row * cardsPerRow + col
+                            if index < ranks.count {
+                                let rank = ranks[index]
+                                let card = Card(rank: rank)
+                                CardView(card: card)
+                                    .frame(width: 60, height: 90)
+                                    .onTapGesture {
+                                        if selectedPlayerCards.count < 2 {
+                                            selectedPlayerCards.append(card)
+                                            if selectedPlayerCards.count == 2 && selectedDealerCard != nil {
+                                                gameState.playerCards = selectedPlayerCards
+                                                gameState.dealerCard = selectedDealerCard
+                                                gameState.calculateProbabilities()
+                                                showProbabilities = true
+                                            }
+                                        } else if selectedDealerCard == nil {
+                                            selectedDealerCard = card
+                                            if selectedPlayerCards.count == 2 {
+                                                gameState.playerCards = selectedPlayerCards
+                                                gameState.dealerCard = selectedDealerCard
+                                                gameState.calculateProbabilities()
+                                                showProbabilities = true
+                                            }
+                                        }
+                                    }
+                                    .opacity(canSelectCard(card) ? 1.0 : 0.3)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
             
-            // Probabilities
-            if let probabilities = gameState.probabilities {
-                VStack(alignment: .leading, spacing: 15) {
-                    Text("Action Probabilities")
-                        .font(.headline)
-                        .padding(.bottom, 5)
+            // Best move recommendation
+            if showProbabilities, let probabilities = gameState.probabilities {
+                VStack(spacing: 10) {
+                    Text("Best Move")
+                        .font(.title2)
+                        .bold()
                     
-                    // Hit probabilities
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("HIT")
-                            .font(.subheadline)
-                            .bold()
-                        ProbabilityBar(title: "Win:", value: probabilities.hitWin, color: .green)
-                        ProbabilityBar(title: "Bust:", value: probabilities.hitBust, color: .red)
-                        if probabilities.hitBlackjack > 0 {
-                            ProbabilityBar(title: "Blackjack:", value: probabilities.hitBlackjack, color: .blue)
-                        }
-                    }
-                    
-                    // Stand probabilities
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("STAND")
-                            .font(.subheadline)
-                            .bold()
-                        ProbabilityBar(title: "Win:", value: probabilities.standWin, color: .green)
-                        ProbabilityBar(title: "Lose:", value: probabilities.standLose, color: .red)
-                    }
-                    
-                    // Split probabilities (if applicable)
-                    if probabilities.splitWin > 0 {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("SPLIT")
-                                .font(.subheadline)
-                                .bold()
-                            ProbabilityBar(title: "Win:", value: probabilities.splitWin, color: .green)
-                            ProbabilityBar(title: "Bust:", value: probabilities.splitBust, color: .red)
-                        }
-                    }
+                    let bestMove = calculateBestMove(probabilities)
+                    Text(bestMove)
+                        .font(.title3)
+                        .foregroundColor(.green)
+                        .padding()
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(10)
                 }
                 .padding()
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(10)
             }
+            
+            // Reset button
+            Button(action: resetGame) {
+                Text("Reset Game")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(Color.red)
+                    .cornerRadius(10)
+            }
+            .padding()
         }
         .padding()
-        .onChange(of: selectedPlayerCards) { _ in
-            gameState.playerCards = selectedPlayerCards
-            gameState.calculateProbabilities()
+    }
+    
+    private func canSelectCard(_ card: Card) -> Bool {
+        if selectedPlayerCards.count < 2 {
+            return !selectedPlayerCards.contains(where: { $0.id == card.id })
+        } else if selectedDealerCard == nil {
+            return !selectedPlayerCards.contains(where: { $0.id == card.id })
         }
-        .onChange(of: selectedDealerCard) { _ in
-            gameState.dealerCard = selectedDealerCard
-            gameState.calculateProbabilities()
+        return false
+    }
+    
+    private func calculateBestMove(_ probabilities: GameState.Probabilities) -> String {
+        let hitSuccess = probabilities.hitWin + probabilities.hitBlackjack
+        let standSuccess = probabilities.standWin
+        
+        if selectedPlayerCards[0].rank == selectedPlayerCards[1].rank {
+            let splitSuccess = probabilities.splitWin
+            if splitSuccess > hitSuccess && splitSuccess > standSuccess {
+                return "SPLIT"
+            }
         }
+        
+        if hitSuccess > standSuccess {
+            return "HIT"
+        } else {
+            return "STAND"
+        }
+    }
+    
+    private func resetGame() {
+        selectedPlayerCards = []
+        selectedDealerCard = nil
+        gameState.playerCards = []
+        gameState.dealerCard = nil
+        gameState.probabilities = nil
+        showProbabilities = false
     }
 }
 
@@ -101,77 +164,17 @@ struct CardView: View {
     let card: Card
     
     var body: some View {
-        Text(card.displayName)
-            .font(.system(size: 24))
-            .frame(width: 40, height: 60)
-            .background(Color.white)
-            .cornerRadius(8)
-            .shadow(radius: 2)
-    }
-}
-
-struct CardSelectionView: View {
-    @Binding var selectedPlayerCards: [Card]
-    @Binding var selectedDealerCard: Card?
-    let maxPlayerCards: Int
-    
-    var body: some View {
-        VStack {
-            Text("Select Cards")
-                .font(.headline)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    ForEach(Rank.allCases, id: \.self) { rank in
-                        let card = Card(rank: rank)
-                        Button(action: {
-                            selectCard(card)
-                        }) {
-                            CardView(card: card)
-                                .opacity(isCardSelected(card) ? 0.5 : 1.0)
-                        }
-                        .disabled(isCardSelected(card))
-                    }
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Color.white)
+            .overlay(
+                VStack {
+                    Text(card.rank.description)
+                        .font(.system(size: 30))
+                    Text("\(card.rank.value)")
+                        .font(.caption)
                 }
-            }
-        }
-    }
-    
-    private func selectCard(_ card: Card) {
-        if selectedDealerCard == nil {
-            selectedDealerCard = card
-        } else if selectedPlayerCards.count < maxPlayerCards {
-            selectedPlayerCards.append(card)
-        }
-    }
-    
-    private func isCardSelected(_ card: Card) -> Bool {
-        return selectedPlayerCards.contains(where: { $0.id == card.id }) || selectedDealerCard?.id == card.id
-    }
-}
-
-struct ProbabilityBar: View {
-    let title: String
-    let value: Double
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                Spacer()
-                Text("\(Int(value * 100))%")
-                    .bold()
-            }
-            GeometryReader { geometry in
-                Rectangle()
-                    .fill(color.opacity(0.3))
-                    .frame(width: geometry.size.width * CGFloat(value))
-                    .frame(height: 8)
-                    .cornerRadius(4)
-            }
-            .frame(height: 8)
-        }
+            )
+            .shadow(radius: 2)
     }
 }
 

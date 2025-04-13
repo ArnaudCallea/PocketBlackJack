@@ -76,12 +76,10 @@ class GameState: ObservableObject {
         // This would be more complex in a real implementation
         // For now, we'll return a simplified version
         var remaining: [Card] = []
-        for suit in Suit.allCases {
-            for rank in Rank.allCases {
-                let card = Card(suit: suit, rank: rank)
-                if !playerCards.contains(where: { $0.id == card.id }) && dealerCard?.id != card.id {
-                    remaining.append(card)
-                }
+        for rank in Rank.allCases {
+            let card = Card(rank: rank)
+            if !playerCards.contains(where: { $0.id == card.id }) && dealerCard?.id != card.id {
+                remaining.append(card)
             }
         }
         return remaining
